@@ -51,7 +51,8 @@ class LearningPathScreen extends StatelessWidget {
                               MaterialPageRoute(
                                 builder: (context) => ContentScreen(
                                   pathTitle: learningPaths[index],
-                                  fileName: 'assets/content/path${index + 1}.txt',
+                                  fileName:
+                                      'assets/content/path${index + 1}.txt',
                                 ),
                               ),
                             );
@@ -190,7 +191,9 @@ class _ContentScreenState extends State<ContentScreen> {
 
   // 右の寄り道候補をモーダルで表示
   void _showSidePaths() {
-    final sidePaths = learningPaths.where((p) => p != widget.pathTitle).toList();
+    final sidePaths = learningPaths
+        .where((p) => p != widget.pathTitle)
+        .toList();
     showModalBottomSheet(
       context: context,
       builder: (ctx) {

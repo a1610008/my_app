@@ -7,38 +7,47 @@ LearningPath2/
   └── Path2-1.txt
   └── Path2-2.txt
   └── Path2-3.txt
+  └── PathTitle.txt
 LearningPath3/
   └── Path3-1.txt
   └── Path3-2.txt
   └── Path3-3.txt
+  └── PathTitle.txt
 LearningPath4/
   └── Path4-1.txt
   └── Path4-2.txt
   └── Path4-3.txt
+  └── PathTitle.txt
 LearningPath5/
   └── Path5-1.txt
   └── Path5-2.txt
   └── Path5-3.txt
+  └── PathTitle.txt
 LearningPath6/
   └── Path6-1.txt
   └── Path6-2.txt
   └── Path6-3.txt
+  └── PathTitle.txt
 LearningPath7/
   └── Path7-1.txt
   └── Path7-2.txt
   └── Path7-3.txt
+  └── PathTitle.txt
 LearningPath8/
   └── Path8-1.txt
   └── Path8-2.txt
   └── Path8-3.txt
+  └── PathTitle.txt
 LearningPath9/
   └── Path9-1.txt
   └── Path9-2.txt
   └── Path9-3.txt
+  └── PathTitle.txt
 LearningPath10/
   └── Path0-1.txt
   └── Path0-2.txt
   └── Path0-3.txt
+  └── PathTitle.txt
 ExtraContents/
   └── Extra1-1-1.txt
   └── Extra1-1-2.txt

@@ -49,9 +49,14 @@ class _LearningPathSelectScreenState extends State<LearningPathSelectScreen> {
         result.add({
           'path': i.toString(),
           'title': parsed['title'] ?? 'No Title',
+          'type': parsed['type'] ?? 'ジャンル不明',
         });
       } catch (e) {
-        result.add({'path': i.toString(), 'title': 'タイトル取得失敗'});
+        result.add({
+          'path': i.toString(),
+          'title': 'タイトル取得失敗',
+          'type': 'ジャンル不明',
+        });
       }
     }
     return result;
@@ -73,9 +78,10 @@ class _LearningPathSelectScreenState extends State<LearningPathSelectScreen> {
             itemBuilder: (context, index) {
               final pathNumber = int.parse(titles[index]['path']!);
               final title = titles[index]['title']!;
+              final type = titles[index]['type']!;
               return ListTile(
                 title: Text(title),
-                subtitle: Text('Learning Path $pathNumber'),
+                subtitle: Text('ジャンル: $type'),
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: () {
                   Navigator.push(

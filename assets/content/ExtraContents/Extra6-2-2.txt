@@ -1,0 +1,3 @@
+title: EVとの違い
+main: 電気自動車とSDVの技術的な違い。
+Type: 技術

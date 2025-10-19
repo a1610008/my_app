@@ -1,0 +1,3 @@
+title: クラウドの基本構造
+main: IaaS・PaaS・SaaSの違いを理解しよう。
+Type: 技術

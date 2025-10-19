@@ -1,0 +1,3 @@
+title: SigIQの戦略
+main: AIを活用した個別学習の仕組み。
+Type: 技術

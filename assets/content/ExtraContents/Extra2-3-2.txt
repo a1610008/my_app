@@ -1,0 +1,3 @@
+title: 企業事例で学ぶ戦略
+main: AppleやNetflixの成功戦略を分析。
+Type: 企業

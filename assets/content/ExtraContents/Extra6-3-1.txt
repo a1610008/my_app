@@ -1,0 +1,3 @@
+title: AIによる品質管理
+main: 製造現場でのAI活用事例。
+Type: 産業

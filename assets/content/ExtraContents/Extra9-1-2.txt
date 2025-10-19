@@ -1,0 +1,3 @@
+title: EdTechの進化
+main: 教育とテクノロジーの融合が進む。
+Type: 教育

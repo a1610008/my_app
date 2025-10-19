@@ -1,0 +1,3 @@
+title: 失敗から学ぶ戦略
+main: KodakやWeWorkの事例から戦略の落とし穴を知る。
+Type: 経営

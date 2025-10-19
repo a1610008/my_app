@@ -59,7 +59,18 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/content/
+    - assets/content/LearningPath1/
+    - assets/content/LearningPath2/
+    - assets/content/LearningPath3/
+    - assets/content/LearningPath4/
+    - assets/content/LearningPath5/
+    - assets/content/LearningPath6/
+    - assets/content/LearningPath7/
+    - assets/content/LearningPath8/
+    - assets/content/LearningPath9/
+    - assets/content/LearningPath10/
+    - assets/content/ExtraContents/
+
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

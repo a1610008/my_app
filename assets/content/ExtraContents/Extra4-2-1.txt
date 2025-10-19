@@ -1,0 +1,3 @@
+title: インドの教育事情
+main: 急成長するEdTech市場の背景。
+Type: 教育

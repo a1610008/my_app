@@ -1,10 +1,15 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:http/http.dart' as http;
 
 void main() {
   runApp(const MyApp());
 }
 
+/// =================================
+/// 🌟 ルート
+/// =================================
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -35,31 +40,27 @@ class _LearningPathSelectScreenState extends State<LearningPathSelectScreen> {
   @override
   void initState() {
     super.initState();
-    _titlesFuture = _loadAllPathTitles();
+    _titlesFuture = _loadTitles();
   }
 
-  Future<List<Map<String, String>>> _loadAllPathTitles() async {
-    final result = <Map<String, String>>[];
+  Future<List<Map<String, String>>> _loadTitles() async {
+    final List<Map<String, String>> list = [];
+    // LearningPath1..10 の PathTitle.txt を読み込む
     for (int i = 1; i <= 10; i++) {
+      final path = 'assets/content/LearningPath$i/PathTitle.txt';
       try {
-        final content = await rootBundle.loadString(
-          'assets/content/LearningPath$i/PathTitle.txt',
-        );
+        final content = await rootBundle.loadString(path);
         final parsed = _parseKeyValue(content);
-        result.add({
-          'path': i.toString(),
-          'title': parsed['title'] ?? 'No Title',
-          'type': parsed['type'] ?? 'ジャンル不明',
+        list.add({
+          'path': '$i',
+          'title': parsed['title'] ?? 'LearningPath$i',
+          'type': parsed['type'] ?? '',
         });
       } catch (e) {
-        result.add({
-          'path': i.toString(),
-          'title': 'タイトル取得失敗',
-          'type': 'ジャンル不明',
-        });
+        debugPrint('PathTitle 読み込み失敗 ($path): $e');
       }
     }
-    return result;
+    return list;
   }
 
   @override
@@ -83,7 +84,19 @@ class _LearningPathSelectScreenState extends State<LearningPathSelectScreen> {
                 title: Text(title),
                 subtitle: Text('ジャンル: $type'),
                 trailing: const Icon(Icons.arrow_forward_ios),
-                onTap: () {
+                onTap: () async {
+                  // 先に PathX-1.txt を読み、keyword を取得してから遷移する
+                  String firstKeyword = '';
+                  final firstFile =
+                      'assets/content/LearningPath$pathNumber/Path$pathNumber-1.txt';
+                  try {
+                    final firstContent = await rootBundle.loadString(firstFile);
+                    final parsedFirst = _parseKeyValue(firstContent);
+                    firstKeyword = parsedFirst['keyword'] ?? '';
+                  } catch (e) {
+                    debugPrint('初回コンテンツ読み込み失敗 ($firstFile): $e');
+                  }
+
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -91,6 +104,7 @@ class _LearningPathSelectScreenState extends State<LearningPathSelectScreen> {
                         pathNumber: pathNumber,
                         stepNumber: 1,
                         pathTitle: title,
+                        keyword: firstKeyword,
                       ),
                     ),
                   );
@@ -105,18 +119,20 @@ class _LearningPathSelectScreenState extends State<LearningPathSelectScreen> {
 }
 
 /// =================================
-/// 📄 学習パス画面（寄り道ボタン式）
+/// 📄 学習パス画面
 /// =================================
 class LearningPathScreen extends StatefulWidget {
   final int pathNumber;
   final int stepNumber;
   final String pathTitle;
+  final String keyword;
 
   const LearningPathScreen({
     super.key,
     required this.pathNumber,
     required this.stepNumber,
     required this.pathTitle,
+    required this.keyword,
   });
 
   @override
@@ -126,13 +142,20 @@ class LearningPathScreen extends StatefulWidget {
 class _LearningPathScreenState extends State<LearningPathScreen> {
   String mainTitle = '';
   String mainContent = '';
+  String contentKeyword = ''; // state側で保持
+  List<Map<String, String>> relatedContents = [];
 
   @override
   void initState() {
     super.initState();
+    contentKeyword = widget.keyword; // ナビゲーション時に渡された keyword を初期値に
     _loadMainContent();
+    // _fetchRelatedContents は _loadMainContent の中で実行する（そこで最新の keyword を得るため）
   }
 
+  /// =================================
+  /// 📥 メインコンテンツ読み込み
+  /// =================================
   Future<void> _loadMainContent() async {
     try {
       final file =
@@ -142,36 +165,64 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
       setState(() {
         mainTitle = parsed['title'] ?? '';
         mainContent = parsed['main'] ?? '';
+        contentKeyword = parsed['keyword'] ?? contentKeyword; // 上書き（無ければ既存を保持）
       });
+
+      if (contentKeyword.isNotEmpty) {
+        debugPrint('📤 送信するkeyword: $contentKeyword');
+        await _fetchRelatedContents(contentKeyword);
+      } else {
+        debugPrint('⚠️ keywordが空なのでPython連携をスキップ');
+      }
     } catch (e) {
       debugPrint('❌ メインコンテンツ読み込み失敗: $e');
     }
   }
 
-  Future<List<Map<String, String>>> _loadExtraContents() async {
-    final extras = <Map<String, String>>[];
-    for (int i = 1; i <= 3; i++) {
-      final path =
-          'assets/content/ExtraContents/Extra${widget.pathNumber}-${widget.stepNumber}-$i.txt';
-      try {
-        final content = await rootBundle.loadString(path);
-        extras.add(_parseKeyValue(content));
-      } catch (_) {
-        // ファイルがない場合はスキップ
+  /// =================================
+  /// 🧠 Pythonサーバーへリクエスト
+  /// keywordを送り → 関連コンテンツのパスを取得
+  /// =================================
+  Future<void> _fetchRelatedContents(String keyword) async {
+    try {
+      final keywords = keyword.split(',').map((e) => e.trim()).toList();
+      debugPrint('📤 送信するkeyword: $keywords');
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2:5000/recommend'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'keyword': keywords}),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> paths = jsonDecode(response.body);
+        final List<Map<String, String>> loaded = [];
+
+        for (final p in paths) {
+          final content = await rootBundle.loadString(p);
+          loaded.add(_parseKeyValue(content));
+        }
+
+        setState(() {
+          relatedContents = loaded;
+        });
+      } else {
+        debugPrint('⚠️ Python側からの応答エラー: ${response.body}');
       }
+    } catch (e) {
+      debugPrint('❌ Python連携エラー: $e');
     }
-    return extras;
   }
 
-  void _showExtraContentsPopup() async {
-    final extras = await _loadExtraContents();
-    if (extras.isEmpty) {
-      // 何もないときはメッセージ
+  /// =================================
+  /// 🌿 寄り道コンテンツポップアップ
+  /// =================================
+  void _showExtraContentsPopup() {
+    if (relatedContents.isEmpty) {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
           title: const Text('寄り道コンテンツ'),
-          content: const Text('このステップには寄り道コンテンツはありません。'),
+          content: const Text('関連コンテンツはありませんでした。'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -194,18 +245,18 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
-                color: Colors.blue,
+                color: Colors.green,
                 padding: const EdgeInsets.all(12),
                 child: const Text(
-                  '🌿 寄り道コンテンツ',
+                  '🌿 関連コンテンツ',
                   style: TextStyle(color: Colors.white, fontSize: 18),
                 ),
               ),
               Expanded(
                 child: ListView.builder(
-                  itemCount: extras.length,
+                  itemCount: relatedContents.length,
                   itemBuilder: (context, index) {
-                    final extra = extras[index];
+                    final extra = relatedContents[index];
                     return ListTile(
                       title: Text(extra['title'] ?? ''),
                       subtitle: Text(
@@ -214,7 +265,7 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       onTap: () {
-                        Navigator.pop(context); // 一旦ポップアップ閉じる
+                        Navigator.pop(context);
                         _showExtraDetail(extra);
                       },
                     );
@@ -244,6 +295,9 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
     );
   }
 
+  /// =================================
+  /// 🖼️ 画面描画
+  /// =================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -259,7 +313,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 📘 メインタイトル
             Text(
               mainTitle,
               style: Theme.of(
@@ -267,16 +320,12 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-
-            // 📝 本文
             Expanded(
               child: SingleChildScrollView(
                 child: Text(mainContent, style: const TextStyle(fontSize: 16)),
               ),
             ),
             const SizedBox(height: 20),
-
-            // 🧭 ボタン行
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -290,6 +339,7 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                                 pathNumber: widget.pathNumber,
                                 stepNumber: widget.stepNumber - 1,
                                 pathTitle: widget.pathTitle,
+                                keyword: widget.keyword,
                               ),
                             ),
                           );
@@ -302,7 +352,7 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                   ),
-                  child: const Text('🌿 寄り道コンテンツ'),
+                  child: const Text('🌿 関連コンテンツ'),
                 ),
                 ElevatedButton(
                   onPressed: widget.stepNumber < 3
@@ -314,6 +364,7 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                                 pathNumber: widget.pathNumber,
                                 stepNumber: widget.stepNumber + 1,
                                 pathTitle: widget.pathTitle,
+                                keyword: widget.keyword,
                               ),
                             ),
                           );
@@ -331,7 +382,7 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
 }
 
 /// =================================
-/// 🧰 Key:Value パース
+/// 🧰 Key:Value パース関数
 /// =================================
 Map<String, String> _parseKeyValue(String content) {
   final result = <String, String>{};

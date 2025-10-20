@@ -1,5 +1,25 @@
+from flask import Flask, request, jsonify
 import os
 import networkx as nx
+# import related_content_finder as rcf
+
+app = Flask(__name__)
+
+@app.route('/recommend', methods=['POST'])
+def recommend():
+    data = request.get_json()
+    keyword = data.get('keyword', '')
+    print("📩 受け取ったキーワード:", keyword)
+
+    # keywordを使って関連度探索
+    recommendations = estimate_relevance_graph(keyword)
+    print("🔍 推薦結果:", recommendations)
+
+    # クライアント向けにパスを変換して返す
+    converted = [_convert_path_for_client(p) for p in recommendations]
+    print("🔁 変換後パス (クライアント向け):", converted)
+
+    return jsonify(converted)
 
 def build_keyword_graph(folder="../content/ExtraContents"):
     G = nx.Graph()
@@ -52,10 +72,22 @@ def estimate_relevance_graph(input_keywords, folder="../content/ExtraContents", 
     relevance_scores.sort(reverse=True)
     return [path for score, path in relevance_scores[:top_n]]
 
-if __name__ == "__main__":
-    input_keywords = ["生成", "登場", "教育", "あり方", "家庭", "教師", "生徒", "一人ひとり", "理解", "興味"]
-    folder = "../content/ExtraContents"
-    top_matches = estimate_relevance_graph(input_keywords, folder=folder)
+def _convert_path_for_client(path):
+    # バックスラッシュをスラッシュに統一
+    p = path.replace("\\", "/")
+    # ../content/... -> assets/content/...
+    p = p.replace("../content/", "assets/content/")
+    # ../assets/... -> assets/...
+    p = p.replace("../assets/", "assets/")
+    # ./ を削除
+    if p.startswith("./"):
+        p = p[2:]
+    # 先頭に余分な ../ が残っていたら取り除く
+    while p.startswith("../"):
+        p = p[3:]
+    return p
 
-    for i, match in enumerate(top_matches, 1):
-        print(f"{i}. {match}")
+
+if __name__ == "__main__":
+    print("🚀 Flask サーバーを起動します… http://127.0.0.1:5000")
+    app.run(host="0.0.0.0", port=5000, debug=True)

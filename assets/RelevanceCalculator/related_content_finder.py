@@ -48,7 +48,6 @@ def estimate_relevance_graph(input_keywords, folder="../content/ExtraContents", 
 
                         relevance_scores.append((total_score, path))
                         break
-
     relevance_scores.sort(reverse=True)
     return [path for score, path in relevance_scores[:top_n]]
 

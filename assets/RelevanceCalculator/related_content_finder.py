@@ -68,6 +68,22 @@ def get_bm25_scores(query):
     norm = (scores - np.min(scores)) / (np.max(scores) - np.min(scores))
     return dict(zip(docs['item_id'], norm))
 
+def get_item_title(item_id):
+    # item_id が文字列の場合は数値変換を試みる
+    try:
+        key = int(item_id)
+    except Exception:
+        try:
+            key = int(str(item_id))
+        except Exception:
+            key = item_id
+
+    matched = docs[docs['item_id'] == key]
+    if matched.empty:
+        return None
+    title = matched['title'].values[0]
+    return title if title else None
+
 if __name__ == "__main__":
     # input_keywords = ["生成", "登場", "教育", "あり方", "家庭", "教師", "生徒", "一人ひとり", "理解", "興味"]
     # folder = "../content/ExtraContents"
@@ -82,5 +98,5 @@ if __name__ == "__main__":
     for item_id, score in sorted_scores:
         print(f"Item ID: {item_id}, Score: {score:.4f}")
         # 該当ファイルのタイトルを表示
-        title = docs[docs['item_id'] == item_id]['title'].values[0]
+        title = get_item_title(item_id)
         print(f"Title: {title}")

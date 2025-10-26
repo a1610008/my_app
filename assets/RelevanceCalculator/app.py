@@ -14,8 +14,21 @@ def recommend():
     # keywordを使って関連度探索
     # recommendations = rcf.estimate_relevance_graph(keyword)
     scores = rcf.get_bm25_scores(keyword)
-    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
-    recommendations = [str(item_id) for item_id, score in sorted_scores]
+    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+    # --- 重複タイトルを除外しながら上位3件抽出 ---
+    seen_titles = set()
+    recommendations = []
+    print("🔍 スコア上位候補:", sorted_scores[:10])  # デバッグ用に上位10件を表示
+    for item_id, _score in sorted_scores:
+
+        title = rcf.get_item_title(item_id)
+        if title and title != keyword and title not in seen_titles:
+            seen_titles.add(title)
+            recommendations.append(str(item_id))
+        if len(recommendations) >= 3:
+            break
+
     print("🔍 推薦結果:", recommendations)
 
     # クライアント向けにパスを変換して返す

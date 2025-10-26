@@ -162,17 +162,23 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
           'assets/content/LearningPath${widget.pathNumber}/Path${widget.pathNumber}-${widget.stepNumber}.txt';
       final content = await rootBundle.loadString(file);
       final parsed = _parseKeyValue(content);
+
+      // 送信用タイトルを先に確保
+      final titleToSend = parsed['title'] ?? '';
+
       setState(() {
         mainTitle = parsed['title'] ?? '';
         mainContent = parsed['main'] ?? '';
-        contentKeyword = parsed['keyword'] ?? contentKeyword; // 上書き（無ければ既存を保持）
+        contentKeyword =
+            parsed['keyword'] ?? contentKeyword; // keyword は内部保持のまま
       });
 
-      if (contentKeyword.isNotEmpty) {
-        debugPrint('📤 送信するkeyword: $contentKeyword');
-        await _fetchRelatedContents(contentKeyword);
+      // ここで title を送る（以前は keyword を送っていた）
+      if (titleToSend.isNotEmpty) {
+        debugPrint('📤 送信する title: $titleToSend');
+        await _fetchRelatedContents(titleToSend);
       } else {
-        debugPrint('⚠️ keywordが空なのでPython連携をスキップ');
+        debugPrint('⚠️ title が空なのでPython連携をスキップ');
       }
     } catch (e) {
       debugPrint('❌ メインコンテンツ読み込み失敗: $e');
@@ -183,23 +189,58 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
   /// 🧠 Pythonサーバーへリクエスト
   /// keywordを送り → 関連コンテンツのパスを取得
   /// =================================
-  Future<void> _fetchRelatedContents(String keyword) async {
+  Future<void> _fetchRelatedContents(String title) async {
     try {
-      final keywords = keyword.split(',').map((e) => e.trim()).toList();
-      debugPrint('📤 送信するkeyword: $keywords');
+      // title をそのまま送る（JSON のキーは既存サーバー側に合わせて 'keyword' のままにしています）
+      debugPrint(
+        '📤 POST title -> ${Uri.parse('http://10.0.2.2:5000/recommend')} : $title',
+      );
       final response = await http.post(
         Uri.parse('http://10.0.2.2:5000/recommend'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'keyword': keywords}),
+        body: jsonEncode({'keyword': title}),
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> paths = jsonDecode(response.body);
         final List<Map<String, String>> loaded = [];
 
+        // items.csv を読み込み（キャッシュ）
+        await _ensureItemsLoaded();
+
         for (final p in paths) {
-          final content = await rootBundle.loadString(p);
-          loaded.add(_parseKeyValue(content));
+          final s = p as String;
+
+          // 受け取った値が item_id（数字）の場合は items.csv から取得
+          final numericMatch = RegExp(r'^\d+$').firstMatch(s.trim());
+          String? itemId;
+          if (numericMatch != null) {
+            itemId = s.trim();
+          } else {
+            // パス形式なら末尾ファイル名から数字を抽出 (例: 1.csv や Extra1-1-1.txt など)
+            final name = s.replaceAll('\\', '/').split('/').last;
+            final m = RegExp(r'(\d+)').firstMatch(name);
+            if (m != null) itemId = m.group(1);
+          }
+
+          if (itemId != null && _itemsCache.containsKey(itemId)) {
+            final item = _itemsCache[itemId]!;
+            // CSV 側の body を 'main' キーで保持して UI と整合させる
+            loaded.add({
+              'title': item['title'] ?? '',
+              'main': item['body'] ?? '',
+            });
+            continue;
+          }
+
+          // fallback: これまでどおり asset パスを解決して txt を読む
+          try {
+            final assetPath = _assetPathFromPythonPath(s);
+            final content = await rootBundle.loadString(assetPath);
+            loaded.add(_parseKeyValue(content));
+          } catch (e) {
+            debugPrint('⚠️ 参照コンテンツ読み込み失敗 ($s): $e');
+          }
         }
 
         setState(() {
@@ -211,6 +252,55 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
     } catch (e) {
       debugPrint('❌ Python連携エラー: $e');
     }
+  }
+
+  // items.csv のキャッシュ（item_id -> {title, body}）
+  final Map<String, Map<String, String>> _itemsCache = {};
+
+  Future<void> _ensureItemsLoaded() async {
+    if (_itemsCache.isNotEmpty) return;
+    try {
+      final csv = await rootBundle.loadString('assets/content/items.csv');
+      final lines = csv
+          .split('\n')
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty)
+          .toList();
+      if (lines.isEmpty) return;
+
+      // ヘッダを除いてパース
+      for (var i = 1; i < lines.length; i++) {
+        final line = lines[i];
+        // 最初の4区切りで分割（item_id,title,body,tags,category）
+        final parts = _splitCsvLine(line, 5);
+        if (parts.length < 3) continue;
+        final id = parts[0].trim();
+        final title = parts[1].trim();
+        final body = parts[2].trim();
+        _itemsCache[id] = {'title': title, 'body': body};
+      }
+      debugPrint('✅ items.csv を読み込みました (${_itemsCache.length} 件)');
+    } catch (e) {
+      debugPrint('❌ items.csv 読み込み失敗: $e');
+    }
+  }
+
+  // CSV 行を指定数のフィールドに分割する（最後のフィールドは残り全部）
+  List<String> _splitCsvLine(String line, int fields) {
+    final res = <String>[];
+    int start = 0;
+    for (int i = 0; i < fields - 1; i++) {
+      final idx = line.indexOf(',', start);
+      if (idx == -1) {
+        // 区切りが足りない場合は残りを push して終わり
+        res.add(line.substring(start));
+        return res;
+      }
+      res.add(line.substring(start, idx));
+      start = idx + 1;
+    }
+    res.add(line.substring(start)); // 残り全部
+    return res;
   }
 
   /// =================================
@@ -395,4 +485,16 @@ Map<String, String> _parseKeyValue(String content) {
     }
   }
   return result;
+}
+
+String _assetPathFromPythonPath(String pythonPath) {
+  // Python側からのパスをアセットパスに変換
+  // 例: 'LearningPath1/Path1-1.txt' -> 'assets/content/LearningPath1/Path1-1.txt'
+  final pathParts = pythonPath.split('/');
+  if (pathParts.length >= 2) {
+    final pathNumber = pathParts[0].replaceAll('LearningPath', '');
+    final fileName = pathParts[1];
+    return 'assets/content/LearningPath$pathNumber/$fileName';
+  }
+  return pythonPath; // 変換できない場合はそのまま返す
 }

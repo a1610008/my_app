@@ -281,8 +281,67 @@ def make_path_titletxt():
     print("ジャンル付き PathTitle.txt を各フォルダに作成したよ！📁✨")
 
 
+import csv
+import os
+
+
+def txts_to_single_csv(input_dir, output_csv="items.csv"):
+    """
+    指定フォルダ内の全txtファイルを読み取り、1つのCSV (items.csv) にまとめて出力する。
+    CSVのカラムは item_id, title, body, tags, category。
+    """
+    txt_files = [f for f in os.listdir(input_dir) if f.endswith(".txt")]
+    if not txt_files:
+        print("⚠️ 指定フォルダにtxtファイルが見つかりません。")
+        return
+
+    rows = []
+    for i, filename in enumerate(sorted(txt_files), start=1):
+        item_id = i
+        txt_path = os.path.join(input_dir, filename)
+
+        with open(txt_path, "r", encoding="utf-8") as f:
+            lines = [line.strip() for line in f if line.strip()]
+
+        title = ""
+        body = ""
+        category = ""
+        keywords = ""
+
+        for line in lines:
+            if line.startswith("title:"):
+                title = line.replace("title:", "").strip()
+            elif line.startswith("main:"):
+                body = line.replace("main:", "").strip()
+            elif line.startswith("Type:"):
+                category = line.replace("Type:", "").strip()
+            elif line.startswith("keyword:"):
+                keywords = line.replace("keyword:", "").strip()
+
+        # --- タグをセミコロン区切りに整形 ---
+        tags = ";".join([t.strip() for t in keywords.split(",") if t.strip()])
+
+        rows.append([item_id, title, body, tags, category])
+
+    # --- CSV出力 ---
+    with open(output_csv, "w", newline="", encoding="utf-8-sig") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["item_id", "title", "body", "tags", "category"])
+        writer.writerows(rows)
+
+    print(f"✅ {len(rows)}件のデータを {output_csv} にまとめました。")
+
+
+# --- 実行例 ---
 if __name__ == "__main__":
-    make_LearningPaths()
-    make_ExtraContents()
-    make_folderPaths()
-    make_path_titletxt()
+    # 例: ExtraContentsフォルダ内のTXTをまとめて items.csv に出力
+    txts_to_single_csv(input_dir="ExtraContents", output_csv="items.csv")
+
+
+# if __name__ == "__main__":
+#     # make_LearningPaths()
+#     # make_ExtraContents()
+#     # make_folderPaths()
+#     # make_path_titletxt()
+
+#     txt_to_csv_folder(input_dir="ExtraContents")

@@ -1,6 +1,15 @@
 import os
 import networkx as nx
 
+from rank_bm25 import BM25Okapi
+from janome.tokenizer import Tokenizer
+import numpy as np, pandas as pd
+
+docs = pd.read_csv("../content/items.csv")
+t = Tokenizer()
+tokenized = [[token.surface for token in t.tokenize(text)] for text in docs['body']]
+bm25 = BM25Okapi(tokenized)
+
 def build_keyword_graph(folder="../content/ExtraContents"):
     G = nx.Graph()
 
@@ -49,12 +58,29 @@ def estimate_relevance_graph(input_keywords, folder="../content/ExtraContents", 
                         relevance_scores.append((total_score, path))
                         break
     relevance_scores.sort(reverse=True)
+    print("relevance_scores:", relevance_scores[:10])  # デバッグ用に上位10件を表示
     return [path for score, path in relevance_scores[:top_n]]
 
-if __name__ == "__main__":
-    input_keywords = ["生成", "登場", "教育", "あり方", "家庭", "教師", "生徒", "一人ひとり", "理解", "興味"]
-    folder = "../content/ExtraContents"
-    top_matches = estimate_relevance_graph(input_keywords, folder=folder)
+def get_bm25_scores(query):
+    q = [token.surface for token in t.tokenize(query)]
+    scores = bm25.get_scores(q)
+    # Min-Max 正規化
+    norm = (scores - np.min(scores)) / (np.max(scores) - np.min(scores))
+    return dict(zip(docs['item_id'], norm))
 
-    for i, match in enumerate(top_matches, 1):
-        print(f"{i}. {match}")
+if __name__ == "__main__":
+    # input_keywords = ["生成", "登場", "教育", "あり方", "家庭", "教師", "生徒", "一人ひとり", "理解", "興味"]
+    # folder = "../content/ExtraContents"
+    # top_matches = estimate_relevance_graph(input_keywords, folder=folder)
+
+    # for i, match in enumerate(top_matches, 1):
+    #     print(f"{i}. {match}")
+
+    query = "論理的思考の基本"
+    scores = get_bm25_scores(query)
+    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:5]
+    for item_id, score in sorted_scores:
+        print(f"Item ID: {item_id}, Score: {score:.4f}")
+        # 該当ファイルのタイトルを表示
+        title = docs[docs['item_id'] == item_id]['title'].values[0]
+        print(f"Title: {title}")

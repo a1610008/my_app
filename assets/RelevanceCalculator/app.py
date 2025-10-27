@@ -1,9 +1,13 @@
 from flask import Flask, request, jsonify
+import csv 
 import os
+import pandas as pd
 
 import related_content_finder as rcf
+import user_action as ua
 
 app = Flask(__name__)
+ITEMS_CSV = "../content/items.csv"
 
 @app.route('/recommend', methods=['POST'])
 def recommend():
@@ -37,20 +41,47 @@ def recommend():
 
     return jsonify(recommendations)
 
-def _convert_path_for_client(path):
-    # バックスラッシュをスラッシュに統一
-    p = path.replace("\\", "/")
-    # ../content/... -> assets/content/...
-    p = p.replace("../content/", "assets/content/")
-    # ../assets/... -> assets/...
-    p = p.replace("../assets/", "assets/")
-    # ./ を削除
-    if p.startswith("./"):
-        p = p[2:]
-    # 先頭に余分な ../ が残っていたら取り除く
-    while p.startswith("../"):
-        p = p[3:]
-    return p
+
+@app.route("/log_event", methods=["POST"])
+def log_event():
+    data = request.get_json()
+    user_id = data.get("user_id", 1)
+    title = data.get("item_id")  # Flutterから送られるタイトル
+    action = data.get("action")
+    from_page = data.get("from", "")
+    timestamp = data.get("timestamp")
+
+    if not title or not action:
+        return jsonify({"error": "missing fields"}), 400
+
+    # --- タイトル → item_id 解決 ---
+    try:
+        items_df = pd.read_csv(ITEMS_CSV)
+        title_to_id = dict(zip(items_df["title"], items_df["item_id"]))
+        item_id = title_to_id.get(title)
+        if item_id is None:
+            print(f"⚠️ タイトル '{title}' に対応する item_id が見つかりません。")
+            item_id = -1
+    except Exception as e:
+        print(f"❌ items.csv 読み込み失敗: {e}")
+        item_id = -1
+
+    # --- ユーザーアクションログ ---
+    ua.log_user_action(user_id, item_id, action, from_page, timestamp)
+
+    # --- 行列生成とALS学習 ---
+    model, matrix = ua.train_als_model()
+    recs = ua.get_als_scores(user_id, model, matrix, top_n=5)
+
+    # NumPy型をPython標準型に変換
+    recs_clean = [(int(item), float(score)) for item, score in recs]
+
+    return jsonify({
+        "status": "ok",
+        "recommendations": recs_clean
+    })
+
+
 
 
 if __name__ == "__main__":

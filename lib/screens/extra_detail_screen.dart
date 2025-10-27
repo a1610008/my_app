@@ -143,9 +143,15 @@ class _ExtraDetailScreenState extends State<ExtraDetailScreen> {
     if (related.isEmpty) {
       showDialog(
         context: context,
-        builder: (_) => const AlertDialog(
-          title: Text('寄り道コンテンツ'),
-          content: Text('関連コンテンツは見つかりませんでした。'),
+        builder: (_) => AlertDialog(
+          title: const Text('寄り道コンテンツ'),
+          content: const Text('関連コンテンツは見つかりませんでした。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('閉じる'),
+            ),
+          ],
         ),
       );
       return;
@@ -250,13 +256,33 @@ class _ExtraDetailScreenState extends State<ExtraDetailScreen> {
                 child: Text(widget.main, style: const TextStyle(fontSize: 16)),
               ),
             ),
+
+            const SizedBox(height: 12),
+            const Divider(),
+
+            // 下部に学習パスと同じレイアウトでボタン群：左=前へ(1つ戻る)、右=関連コンテンツ表示
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('← 前のページへ戻る'),
+                  ),
+                  ElevatedButton(
+                    onPressed: _showRelatedContentsModal,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                    ),
+                    child: const Text('🌿 関連コンテンツ'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.green,
-        onPressed: _showRelatedContentsModal,
-        child: const Icon(Icons.nature),
       ),
     );
   }

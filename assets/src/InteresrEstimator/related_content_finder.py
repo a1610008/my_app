@@ -5,12 +5,21 @@ from rank_bm25 import BM25Okapi
 from janome.tokenizer import Tokenizer
 import numpy as np, pandas as pd
 
-docs = pd.read_csv("../content/items.csv")
+APP_DIR = os.path.dirname(os.path.abspath(__file__))  # ../assets/src/LearningPathManager
+SRC_DIR = os.path.dirname(APP_DIR)                    # ../assets/src
+ASSETS_DIR = os.path.dirname(SRC_DIR)                 # ../assets
+ROOT_DIR = os.path.dirname(ASSETS_DIR)                # ../MyApp
+
+CONTENT_DIR = os.path.join(ASSETS_DIR, "content")
+ITEMS_CSV = os.path.join(CONTENT_DIR, "items.csv")
+EXTRA_CONTENTS_DIR = os.path.join(CONTENT_DIR, "ExtraContents")
+
+docs = pd.read_csv(ITEMS_CSV)
 t = Tokenizer()
 tokenized = [[token.surface for token in t.tokenize(text)] for text in docs['body']]
 bm25 = BM25Okapi(tokenized)
 
-def build_keyword_graph(folder="../content/ExtraContents"):
+def build_keyword_graph(folder=EXTRA_CONTENTS_DIR):
     G = nx.Graph()
 
     for root, _, files in os.walk(folder):
@@ -31,7 +40,7 @@ def build_keyword_graph(folder="../content/ExtraContents"):
                         break
     return G
 
-def estimate_relevance_graph(input_keywords, folder="../content/ExtraContents", top_n=3):
+def estimate_relevance_graph(input_keywords, folder=EXTRA_CONTENTS_DIR, top_n=3):
     G = build_keyword_graph(folder)
     relevance_scores = []
 

@@ -196,33 +196,29 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
   /// =================================
   Future<void> _fetchRelatedContents(String title) async {
     try {
-      // title をそのまま送る（JSON のキーは既存サーバー側に合わせて 'keyword' のままにしています）
+      const userId = 2; // ← 固定でもOK。ユーザー識別があるならそれを使う。
+
       debugPrint(
         '📤 POST title -> ${Uri.parse('http://10.0.2.2:5000/recommend')} : $title',
       );
       final response = await http.post(
         Uri.parse('http://10.0.2.2:5000/recommend'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'keyword': title}),
+        body: jsonEncode({'user_id': userId, 'keyword': title}), // ✅ 修正ここ！
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> paths = jsonDecode(response.body);
         final List<Map<String, String>> loaded = [];
-
-        // items.csv を読み込み（キャッシュ）
         await _ensureItemsLoaded();
 
         for (final p in paths) {
           final s = p as String;
-
-          // 受け取った値が item_id（数字）の場合は items.csv から取得
           final numericMatch = RegExp(r'^\d+$').firstMatch(s.trim());
           String? itemId;
           if (numericMatch != null) {
             itemId = s.trim();
           } else {
-            // パス形式なら末尾ファイル名から数字を抽出 (例: 1.csv や Extra1-1-1.txt など)
             final name = s.replaceAll('\\', '/').split('/').last;
             final m = RegExp(r'(\d+)').firstMatch(name);
             if (m != null) itemId = m.group(1);
@@ -230,7 +226,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
 
           if (itemId != null && _itemsCache.containsKey(itemId)) {
             final item = _itemsCache[itemId]!;
-            // CSV 側の body を 'main' キーで保持して UI と整合させる
             loaded.add({
               'title': item['title'] ?? '',
               'main': item['body'] ?? '',
@@ -238,7 +233,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
             continue;
           }
 
-          // fallback: これまでどおり asset パスを解決して txt を読む
           try {
             final assetPath = _assetPathFromPythonPath(s);
             final content = await rootBundle.loadString(assetPath);

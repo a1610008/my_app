@@ -2,11 +2,24 @@
 import csv
 import os
 
+import numpy as np
+import pandas as pd
+
+from scipy.sparse import csr_matrix
+from implicit.als import AlternatingLeastSquares
 # ================================
 # 🔧 設定
 # ================================
-ITEMS_CSV = "../../content/items.csv"              # title ↔ item_id が格納されているCSV
-LOG_FILE = "../logs/user_events.csv"   # 出力先CSV
+APP_DIR = os.path.dirname(os.path.abspath(__file__))  # ../assets/src/LearningPathManager
+SRC_DIR = os.path.dirname(APP_DIR)                    # ../assets/src
+ASSETS_DIR = os.path.dirname(SRC_DIR)                 # ../assets
+ROOT_DIR = os.path.dirname(ASSETS_DIR)                # ../MyApp
+
+CONTENT_DIR = os.path.join(ASSETS_DIR, "content")
+LOG_DIR = os.path.join(ASSETS_DIR, "logs")
+
+LOG_FILE = os.path.join(LOG_DIR, "user_events.csv")
+ITEMS_CSV = os.path.join(CONTENT_DIR, "items.csv")
 
 # ================================
 # ⚙️ action → action_id マップ
@@ -17,6 +30,11 @@ ACTION_MAP = {
     "navigate": 3
 }
 
+ACTIONS_WEIGHT = {
+    "click": 1.0,
+    "navigate": 2.0,
+    "bookmark": 3.0
+}
 # ================================
 # 🗂️ items.csv のロード関数
 # ================================
@@ -38,6 +56,9 @@ def load_items_map():
                 mapping[title.strip()] = item_id.strip()
     return mapping
 
+# ================================
+# 📝 ユーザーアクションログ記録関数
+# ================================
 def log_user_action(user_id, item_id, action, from_page="", timestamp=""):
     """ユーザーアクションをCSVに記録する"""
 
@@ -58,28 +79,6 @@ def log_user_action(user_id, item_id, action, from_page="", timestamp=""):
         writer.writerow([timestamp, user_id, item_id, action, action_id, from_page])
 
     print(f"📝 user_events に記録: user_id={user_id}, item_id={item_id}, action={action}")
-
-import implicit
-from scipy.sparse import csr_matrix
-import numpy as np, pandas as pd
-# === 設定 ===
-ACTIONS_CSV = "../../logs/user_events.csv"  # アクションログ
-ITEMS_CSV = "../content/items.csv"        # item_id, title, body,...
-MODEL_DIR = "../../models"                   # モデル保存先（必要なら）
-
-ACTIONS_WEIGHT = {
-    "click": 1.0,
-    "navigate": 2.0,
-    "bookmark": 3.0
-}
-
-# ALS用：ログ→行列変換
-# user_action.py
-
-import pandas as pd
-import numpy as np
-from scipy.sparse import csr_matrix
-from implicit.als import AlternatingLeastSquares
 
 # ============================================================
 # ALSモデルの訓練関数
@@ -121,9 +120,8 @@ def train_als_model(csv_path=LOG_FILE, factors=20, regularization=0.1, iteration
     # 🚨 ここが重要：全アイテム列を含む転置行列を渡す
     model.fit(matrix)
 
-
-    print(f"✅ ALSモデル訓練完了: users={num_users}, items={num_items}")
-    print(f"   model.item_factors.shape={model.item_factors.shape}")
+    # print(f"✅ ALSモデル訓練完了: users={num_users}, items={num_items}")
+    # print(f"   model.item_factors.shape={model.item_factors.shape}")
 
     return model, matrix
 
@@ -153,7 +151,18 @@ def get_als_scores(user_id, model, matrix, top_n=5):
     # ✅ ALS推薦実行
     try:
         recs, scores = model.recommend(user_id, matrix[user_id], N=top_n)
-        print(f"🎯 ALS推薦結果: {list(zip(recs, scores))}")
+        scores = np.array(scores, dtype=float)
+
+        # --- 🔧 Min-Max正規化 ---
+        if len(scores) > 0:
+            min_score = np.min(scores)
+            max_score = np.max(scores)
+            if max_score > min_score:
+                scores = (scores - min_score) / (max_score - min_score)
+            else:
+                scores = np.zeros_like(scores)
+
+        # print(f"🎯 ALS推薦結果: {list(zip(recs, scores))}")
         return list(zip(recs, scores))
     except Exception as e:
         print(f"❌ ALS推薦中にエラー発生: {e}")

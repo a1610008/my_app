@@ -65,8 +65,14 @@ def recommend():
         als_val = als_scores_dict.get(item_id, 0)
         hybrid_scores[item_id] = w1 * bm25_val + w2 * als_val 
 
-    # --- 上位 n 件を選出 ---
-    top_items = sorted(hybrid_scores.items(), key=lambda x: x[1], reverse=True)[:top_n]
+    # --- 上位 n 件を選出（keywordと完全一致するタイトルは除外） ---
+    filtered_items = [
+        (item_id, score)
+        for item_id, score in sorted(hybrid_scores.items(), key=lambda x: x[1], reverse=True)
+        if rcf.get_item_title(item_id) != keyword
+    ]
+
+    top_items = filtered_items[:top_n]
     print("🔝 ハイブリッド推薦結果:")
     for i, (item_id, score) in enumerate(top_items, 1):
         title = rcf.get_item_title(item_id)

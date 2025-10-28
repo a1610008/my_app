@@ -102,7 +102,7 @@ def train_als_model(csv_path=LOG_FILE, factors=20, regularization=0.1, iteration
     num_users = int(df["user_id"].max()) + 1
     num_items = int(df["item_id"].max()) + 1
 
-    print(f"🧠 ALSモデル訓練中... 行列 shape=({num_users}, {num_items})")
+    # print(f"🧠 ALSモデル訓練中... 行列 shape=({num_users}, {num_items})")
 
     # 🔧 全てのitem_idを含む疎行列を生成
     matrix = csr_matrix(
@@ -125,6 +125,21 @@ def train_als_model(csv_path=LOG_FILE, factors=20, regularization=0.1, iteration
 
     return model, matrix
 
+# ============================================================
+# タイトル → item_id 変換関数
+# ============================================================
+def title_to_item_id(title):
+    try:
+        items_df = pd.read_csv(ITEMS_CSV)
+        title_to_id = dict(zip(items_df["title"], items_df["item_id"]))
+        item_id = title_to_id.get(title)
+        if item_id is None:
+            print(f"⚠️ タイトル '{title}' に対応する item_id が見つかりません。")
+            item_id = -1
+    except Exception as e:
+        print(f"❌ items.csv 読み込み失敗: {e}")
+        item_id = -1
+    return item_id
 
 # ============================================================
 # ALSモデルからスコアを取得する関数
